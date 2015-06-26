@@ -79,6 +79,10 @@
 #include <errno.h>
 #include <string.h>
 
+// debug
+#include <syslog.h>
+#include <ctype.h>
+
 enum program_return_codes {
     RETURN_NOERROR,
     RETURN_INVALID_ARGUMENTS,
@@ -89,6 +93,77 @@ enum program_return_codes {
     RETURN_HOST_KEY_UNKNOWN,
     RETURN_HOST_KEY_CHANGED,
 };
+
+// debug flags
+int g_syslog_dbg;
+int g_stderr_dbg;
+char g_buf_dbg[BUFSIZ];
+#define MAXBUF (( sizeof(g_buf_dbg)/sizeof(char) ) - 1 )
+#define DBG_NAME_PARENT  "sshpass-dbg-parent"
+#define DBG_NAME_CHILD   "sshpass-dbg-child"
+
+void dbg_init( char* name ) {
+    if ( NULL != getenv("SSHPASS_DEBUG" ) || NULL != getenv("SSHPASS_DBG_SYSLOG" ) ) {
+        g_syslog_dbg = 1;
+    } else {
+        g_syslog_dbg = 0;
+    }
+    
+    if ( NULL != getenv("SSHPASS_DEBUG" ) || NULL != getenv("SSHPASS_DBG_STDERR" ) ) {
+        g_stderr_dbg = 1;
+    } else {
+        g_stderr_dbg = 0;
+    }
+
+    // openlog ("sshpass-dbg", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+    if ( g_syslog_dbg ) {
+        name = ( name ) ? ( name ) : ( DBG_NAME_PARENT ) ;
+        closelog();
+        openlog (name, LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+        // syslog (LOG_NOTICE, "Program started by User %d", getuid ());
+        // closelog();
+    }
+}
+
+
+// prints to either syslog, or stderr, or both; pass -1 for \0-terminated strings
+void dbg_text( char* message, int len ) {
+
+    char buf[BUFSIZ];
+    int M = BUFSIZ - 1;
+
+    if ( len < 0 ) { len = strlen(message); }
+
+    int N = ( len > M ) ? ( M ) : ( len ) ;
+    memcpy(buf, message, N);
+
+    // make it printable
+    if (1) {
+        int i;
+        for( i = 0; i < N; ++i ) { 
+            if (!isprint(buf[i])) {
+                buf[i] = '*' ;
+            }
+        }
+    }
+
+    if ( g_stderr_dbg ) {
+        // openlog ("sshpass-dbg", LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+        buf[N] = '\n';
+        write( 2, buf, N+1 );
+        // closelog();
+    }
+    
+    if ( g_syslog_dbg ) {
+        // openlog ("sshpass-dbg", LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+        buf[N] = '\0';
+        syslog (LOG_NOTICE, buf);
+        // closelog();
+    }
+    
+}
+
+
 
 // Some systems don't define posix_openpt
 #ifndef HAVE_POSIX_OPENPT
@@ -219,6 +294,10 @@ int main( int argc, char *argv[] )
         return 0;
     }
 
+    dbg_init( DBG_NAME_PARENT );
+    sprintf(g_buf_dbg, "  ===  Program started by user %d (ppid %d => pid %d)", getuid(), getppid(), getpid());
+    dbg_text( g_buf_dbg, -1 );
+
     return runprogram( argc-opt_offset, argv+opt_offset );
 }
 
@@ -300,6 +379,10 @@ int runprogram( int argc, char *argv[] )
     if( childpid==0 ) {
 	// Child
 
+        dbg_init( DBG_NAME_CHILD );
+        sprintf(g_buf_dbg, "Forked a child (ppid %d => pid %d)", getppid(), getpid());
+        dbg_text( g_buf_dbg, -1 );
+
 	// Detach us from the current TTY
 	setsid();
         // This line makes the ptty our controlling tty. We do not otherwise need it open
@@ -308,6 +391,9 @@ int runprogram( int argc, char *argv[] )
 	
 	close( masterpt );
 
+        sprintf( g_buf_dbg, "child: masterpt is %d, slavept is %d ", masterpt, slavept );
+        dbg_text( g_buf_dbg, -1 );
+        
         // main reason for the lines below is to make argv[] NULL-terminated
         if (1) {
 
@@ -321,6 +407,8 @@ int runprogram( int argc, char *argv[] )
 
             new_argv[i]=NULL;
 
+            sprintf( g_buf_dbg, "child is about to run %s ", new_argv[0] );
+            dbg_text( g_buf_dbg, -1 );
             execvp( new_argv[0], new_argv );
         }
 
@@ -335,6 +423,9 @@ int runprogram( int argc, char *argv[] )
 	
     // We are the parent
     slavept=open(name, O_RDWR|O_NOCTTY );
+
+        sprintf( g_buf_dbg, "parent: masterpt is %d, slavept is %d ", masterpt, slavept );
+        dbg_text( g_buf_dbg, -1 );
 
     int status=0;
     int terminate=0;
@@ -357,7 +448,9 @@ int runprogram( int argc, char *argv[] )
 	    FD_ZERO(&readfd);
 	    FD_SET(masterpt, &readfd);
 
+            dbg_text( "parent: select >>>", -1 );
 	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
+            dbg_text( "parent: select <<<", -1 );
 
 	    if( selret>0 ) {
 		if( FD_ISSET( masterpt, &readfd ) ) {
@@ -410,6 +503,8 @@ int handleoutput( int fd )
     int ret=0;
 
     int numread=read(fd, buffer, sizeof(buffer) );
+        sprintf( g_buf_dbg, "  >>  parent: !numread %d %s", numread, (numread > 0) ? ":" : "" );
+        dbg_text( g_buf_dbg, -1 );
     if( numread<0 ) { // recovered from v. 1.04
         //  // Comment no. 3.1416
         //  // Select is doing a horrid job of waking us up at the right time - it wakes up with "read ready" when the slave
@@ -419,13 +514,16 @@ int handleoutput( int fd )
         //  // a failure here suggest ssh is ready to exit. 
         return -1;
     }
+        dbg_text( buffer, numread );        
 
     state1=match( compare1, buffer, numread, state1 );
 
     // Are we at a password prompt?
     if( compare1[state1]=='\0' ) {
 	if( !prevmatch ) {
+            dbg_text( "write fd >>", -1 ); 
 	    write_pass( fd );
+            dbg_text( "<< write fd", -1 ); 
 	    state1=0;
 	    prevmatch=1;
 	} else {
@@ -448,8 +546,13 @@ int handleoutput( int fd )
 
 int match( const char *reference, const char *buffer, ssize_t bufsize, int state )
 {
-    // This is a highly simplisic implementation. It's good enough for matching "Password: ", though.
+    // This is a highly simplistic implementation. It's good enough for matching "Password: ", though.
     int i;
+    
+    /*
+     * should work for the strings with no repetitions in them * *  
+     */
+    
     for( i=0;reference[state]!='\0' && i<bufsize; ++i ) {
 	if( reference[state]==buffer[i] )
 	    state++;
