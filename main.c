@@ -308,17 +308,21 @@ int runprogram( int argc, char *argv[] )
 	
 	close( masterpt );
 
-	char **new_argv=malloc(sizeof(char *)*(argc+1));
+        // main reason for the lines below is to make argv[] NULL-terminated
+        if (1) {
 
-	int i;
+            char **new_argv=malloc(sizeof(char *)*(argc+1));
 
-	for( i=0; i<argc; ++i ) {
-	    new_argv[i]=argv[i];
-	}
+            int i;
 
-	new_argv[i]=NULL;
+            for( i=0; i<argc; ++i ) {
+                new_argv[i]=argv[i];
+            }
 
-	execvp( new_argv[0], new_argv );
+            new_argv[i]=NULL;
+
+            execvp( new_argv[0], new_argv );
+        }
 
 	perror("sshpass: Failed to run command");
 
