@@ -363,16 +363,15 @@ int runprogram( int argc, char *argv[] )
 
                         // handleoutput returns positive error number in case of some error, and a negative value
                         // if all that happened is that the slave end of the pt is closed.
-                        if( ret>0 ) {
-                            close( masterpt ); // Signal ssh that it's controlling TTY is now closed
+                        if( ret ) {
                             close(slavept);
                         }
 
-			terminate=ret;
-
-                        if( terminate ) {
-                            close( slavept );
+                        if( ret>0 ) {
+                            close( masterpt ); // Signal ssh that it's controlling TTY is now closed
                         }
+
+			terminate=ret;
 		    }
 		}
 	    }
@@ -407,6 +406,15 @@ int handleoutput( int fd )
     int ret=0;
 
     int numread=read(fd, buffer, sizeof(buffer) );
+    if( numread<0 ) { // recovered from v. 1.04
+        //  // Comment no. 3.1416
+        //  // Select is doing a horrid job of waking us up at the right time - it wakes up with "read ready" when the slave
+        //  // end of the pty is closed. This result in an IO error when we perform a read. In the general case, this does
+        //  // not mean that the master is no more of use, as it may still be that the client will open /dev/tty and send data.
+        //  // In our case, we keep the slave end open (leaking a file descriptor - the price you pay for API insanity), and so
+        //  // a failure here suggest ssh is ready to exit. 
+        return -1;
+    }
 
     state1=match( compare1, buffer, numread, state1 );
 
