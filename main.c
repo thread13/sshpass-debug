@@ -18,9 +18,48 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
-#if HAVE_CONFIG_H
-#include "config.h"
+// 
+//  #if HAVE_CONFIG_H
+//  #include "config.h"
+//  #endif
+// 
+#if 1
+    #define PACKAGE "sshpass"
+    // #define PACKAGE_BUGREPORT ""
+    #define PACKAGE_NAME PACKAGE
+    #define PACKAGE_STRING "sshpass 1.05"
+    // #define PACKAGE_TARNAME "sshpass"
+    // #define PACKAGE_URL ""
+    // #define PACKAGE_VERSION "1.05"
+
+    #if 0
+    /* Define as the return type of signal handlers (`int' or `void'). */
+    #define RETSIGTYPE void
+    /* Define to the type of arg 1 for `select'. */
+    #define SELECT_TYPE_ARG1 int
+    /* Define to the type of args 2, 3 and 4 for `select'. */
+    #define SELECT_TYPE_ARG234 (fd_set *)
+    /* Define to the type of arg 5 for `select'. */
+    #define SELECT_TYPE_ARG5 (struct timeval *)
+    #endif
+
+    /* Define to 1 if you have the ANSI C header files. */
+    // #define STDC_HEADERS 1
+
+    // no idea why this is required for correct work, but it is
+    #if 0
+        /* Enable GNU extensions on systems that have them.  */
+        #ifndef _GNU_SOURCE
+            # define _GNU_SOURCE 1
+        #endif
+    #endif
+
+    // this is enough
+    #ifndef _XOPEN_SOURCE
+        # define _XOPEN_SOURCE 700
+    #endif
 #endif
+
 
 #include <sys/types.h>
 #include <sys/stat.h>
