@@ -79,6 +79,9 @@
 #include <errno.h>
 #include <string.h>
 
+// timeouts
+#include <limits.h>
+
 // debug
 #include <syslog.h>
 #include <ctype.h>
@@ -94,28 +97,7 @@ enum program_return_codes {
     RETURN_HOST_KEY_CHANGED,
 };
 
-// handling read timeout
-// unsigned int g_read_timeout; // 0 by default => no timeout
-// struct timespec g_timeout;
-struct timespec* g_timeout_p;
-void get_fd_timeout() {
-
-    static struct timespec g_timeout;
-    g_timeout_p = NULL ; // no timeout by default
-
-    char* timeout_str_seconds = getenv("SSHPASS_READ_TIMEOUT" );
-
-    if ( NULL != timeout_str_seconds ) {
-        g_timeout.tv_nsec = 0 ;
-        long seconds = atol( timeout_str_seconds ) ; // strtol(), yeah
-        if ( seconds <= 0 ) { perror( "atol(); check env/SSHPASS_READ_TIMEOUT" ); exit( EXIT_FAILURE ); }
-        // else ..
-        g_timeout.tv_sec = seconds ;
-        g_timeout_p =  & g_timeout ;
-    } 
-    
-} // get_fd_timeout()
-
+// -----------------------------------------------------------------------  
 
 // debug flags
 int g_syslog_dbg;
@@ -186,7 +168,55 @@ void dbg_text( char* message, int len ) {
     
 }
 
+// -----------------------------------------------------------------------  
 
+
+// handling read timeout
+unsigned int g_read_timeout; // 0 by default => no timeout
+void get_fd_timeout() {
+
+    char* timeout_str_seconds = getenv("SSHPASS_READ_TIMEOUT" );
+
+    if ( NULL != timeout_str_seconds ) {
+        long timeout = atol( timeout_str_seconds );
+        if ( ( timeout <= 0 ) || ( timeout >= INT_MAX ) ) { perror( "atol(); check env/SSHPASS_READ_TIMEOUT: too long, or not an int, etc" ); exit( EXIT_FAILURE ); } 
+        g_read_timeout = (unsigned int) timeout ;
+    } 
+    
+    sprintf( g_buf_dbg, "timeout: %u (0 means \"unset\")", g_read_timeout );
+    dbg_text( g_buf_dbg, -1 );    
+    
+} // get_fd_timeout()
+
+
+void set_read_timeout() {
+
+    /*
+     * we shouldn't really need a handler since as master process dies,
+     * the controlling tty should be closed by the system and that would notify ssh ;
+     * 
+     * however, to be on the safe side, one can use a handler
+     */
+
+    if ( g_read_timeout ) {
+        
+        signal( SIGALRM, SIG_DFL ); // no handler
+        alarm( g_read_timeout );
+    }
+
+} // set_read_timeout()
+
+
+void unset_read_timeout() {
+    
+    if ( g_read_timeout ) {
+        signal(SIGALRM, SIG_IGN);
+    }
+    
+} // unset_read_timeout()
+
+
+// -----------------------------------------------------------------------  
 
 // Some systems don't define posix_openpt
 #ifndef HAVE_POSIX_OPENPT
@@ -477,9 +507,11 @@ int runprogram( int argc, char *argv[] )
             dbg_text( "parent: select >>>", -1 );
             // alarm(10);
             // signal(SIGALRM, SIG_DFL); // no handler
-	    // int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
-	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, g_timeout_p, &sigmask_select );
+            set_read_timeout();
+	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
+	    // int selret=pselect( masterpt+1, &readfd, NULL, NULL, g_timeout_p, &sigmask_select );
             // signal(SIGALRM, SIG_IGN);
+            unset_read_timeout();
             dbg_text( "parent: select <<<", -1 );
 
 	    if( selret>0 ) {
