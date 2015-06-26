@@ -94,6 +94,29 @@ enum program_return_codes {
     RETURN_HOST_KEY_CHANGED,
 };
 
+// handling read timeout
+// unsigned int g_read_timeout; // 0 by default => no timeout
+// struct timespec g_timeout;
+struct timespec* g_timeout_p;
+void get_fd_timeout() {
+
+    static struct timespec g_timeout;
+    g_timeout_p = NULL ; // no timeout by default
+
+    char* timeout_str_seconds = getenv("SSHPASS_READ_TIMEOUT" );
+
+    if ( NULL != timeout_str_seconds ) {
+        g_timeout.tv_nsec = 0 ;
+        long seconds = atol( timeout_str_seconds ) ; // strtol(), yeah
+        if ( seconds <= 0 ) { perror( "atol(); check env/SSHPASS_READ_TIMEOUT" ); exit( EXIT_FAILURE ); }
+        // else ..
+        g_timeout.tv_sec = seconds ;
+        g_timeout_p =  & g_timeout ;
+    } 
+    
+} // get_fd_timeout()
+
+
 // debug flags
 int g_syslog_dbg;
 int g_stderr_dbg;
@@ -298,8 +321,11 @@ int main( int argc, char *argv[] )
     sprintf(g_buf_dbg, "  ===  Program started by user %d (ppid %d => pid %d)", getuid(), getppid(), getpid());
     dbg_text( g_buf_dbg, -1 );
 
+    get_fd_timeout(); // read env to get SSHPASS_READ_TIMEOUT and set the pointer
+    
     return runprogram( argc-opt_offset, argv+opt_offset );
 }
+
 
 int handleoutput( int fd );
 
@@ -449,10 +475,11 @@ int runprogram( int argc, char *argv[] )
 	    FD_SET(masterpt, &readfd);
 
             dbg_text( "parent: select >>>", -1 );
-            alarm(10);
-            signal(SIGALRM, SIG_DFL); // no handler
-	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
-            signal(SIGALRM, SIG_IGN);
+            // alarm(10);
+            // signal(SIGALRM, SIG_DFL); // no handler
+	    // int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
+	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, g_timeout_p, &sigmask_select );
+            // signal(SIGALRM, SIG_IGN);
             dbg_text( "parent: select <<<", -1 );
 
 	    if( selret>0 ) {
