@@ -3,7 +3,7 @@
 sshpass 1.05 with [optional] timeouts and [optional] debug output
 
 -- nice utility from [http://sourceforge.net/projects/sshpass/][sshpass] , 
-recommended for use with Ansible. However, sometimes it hungs, 
+recommended for use with Ansible. However, sometimes it hangs, 
 e.g.: [http://sourceforge.net/p/sshpass/bugs/7/][bug7] ,
 and to debug that some syslog-based messages were added.
 
