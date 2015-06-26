@@ -18,16 +18,18 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+//
+// -- to go with ./configure, enable this and change "#if 1" to "#if 0" below
 // 
 //  #if HAVE_CONFIG_H
 //  #include "config.h"
 //  #endif
 // 
 #if 1
-    #define PACKAGE "sshpass"
+    #define PACKAGE "sshpass-debug"
     // #define PACKAGE_BUGREPORT ""
     #define PACKAGE_NAME PACKAGE
-    #define PACKAGE_STRING "sshpass 1.05"
+    #define PACKAGE_STRING "sshpass-debug 1.05"
     // #define PACKAGE_TARNAME "sshpass"
     // #define PACKAGE_URL ""
     // #define PACKAGE_VERSION "1.05"
