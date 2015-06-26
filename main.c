@@ -280,6 +280,7 @@ int runprogram( int argc, char *argv[] )
 		}
 	    }
 	    wait_id=waitpid( childpid, &status, WNOHANG );
+            sleep(1); // a quick fix from here: [ https://bugs.launchpad.net/ubuntu/+source/sshpass/+bug/774882 ]
 	} else {
 	    wait_id=waitpid( childpid, &status, 0 );
 	}
@@ -311,7 +312,7 @@ int handleoutput( int fd )
 
     int numread=read(fd, buffer, sizeof(buffer) );
 
-    if( numread<0 ) {
+    if( numread<0 && errno!=5 ) { // 5 is EIO
         // Comment no. 3.1416
         // Select is doing a horrid job of waking us up at the right time - it wakes up with "read ready" when the slave
         // end of the pty is closed. This result in an IO error when we perform a read. In the general case, this does
