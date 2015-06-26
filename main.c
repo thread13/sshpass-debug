@@ -449,7 +449,10 @@ int runprogram( int argc, char *argv[] )
 	    FD_SET(masterpt, &readfd);
 
             dbg_text( "parent: select >>>", -1 );
+            alarm(10);
+            signal(SIGALRM, SIG_DFL); // no handler
 	    int selret=pselect( masterpt+1, &readfd, NULL, NULL, NULL, &sigmask_select );
+            signal(SIGALRM, SIG_IGN);
             dbg_text( "parent: select <<<", -1 );
 
 	    if( selret>0 ) {
