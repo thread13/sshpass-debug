@@ -16,7 +16,7 @@ to restore it to a `./configure`-based build look at the history.
 Usage: does not differ from original 'sshpass', 
 except for a few environment variables are available:
 
-    # log some data ( except for pw, of course ) with syslog
+    # log some data ( except for the password, of course ) with syslog
     export SSHPASS_DBG_SYSLOG=1
     # sets a (killing) timeout for every pty read,
     # so that long reads from the pseudo-terminal will terminate the application
